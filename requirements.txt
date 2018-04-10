@@ -1,3 +1,4 @@
+requests[security]
 Pillow
 wsgiref
 gunicorn

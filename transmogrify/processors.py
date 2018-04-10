@@ -7,7 +7,7 @@ import re
 SIZE_RE = re.compile(r"^((\d+)|(x\d+)|(\d+x\d+))$")
 
 __all__ = ["Thumbnail", "Crop", "ForceFit", "Resize", "LetterboxResize",
-           "Border", "Filter", "Mask", "AutoCrop"]
+           "Border", "Filter", "Mask", "AutoCrop", "Watermark"]
 
 
 class Processor(object):
@@ -317,3 +317,41 @@ class AutoCrop(Processor):
         box_width, box_height = AutoCrop.parse_size(image, size)
         scaled_size, rect = smart_crop(box_width, box_height, image.filename)
         return image.resize(scaled_size, Image.ANTIALIAS).crop(tuple(rect))
+
+
+class Watermark(Processor):
+    """
+    Create watermarked image
+    """
+    @staticmethod
+    def code():
+        return "w"
+
+    @staticmethod
+    def param_pattern():
+        return re.compile('^$')
+
+    @staticmethod
+    def process(image, watermark, *args, **kwargs):
+        """
+        Apply a light or dark watermark depending on calculated median color of original image
+        """
+        rgba_image = image.convert('RGBA')
+        rgba_watermark = watermark.convert('RGBA')
+
+        image_x, image_y = rgba_image.size
+        watermark_x, watermark_y = rgba_watermark.size
+
+        watermark_scale = max(image_x / (10.0 * watermark_x), image_y / (10.0 * watermark_y))
+        new_size = (int(watermark_x * watermark_scale), int(watermark_y * watermark_scale))
+        rgba_watermark = rgba_watermark.resize(new_size, resample=Image.BICUBIC)
+
+        rgba_watermark_mask = rgba_watermark.convert("L").point(lambda x: min(x, 100))
+        rgba_watermark.putalpha(rgba_watermark_mask)
+
+        watermark_x, watermark_y = rgba_watermark.size
+        rgba_image.paste(rgba_watermark, (
+            (image_x - (watermark_x + 20)), (image_y - (watermark_y + 20))),
+                         rgba_watermark_mask)
+
+        return rgba_image
